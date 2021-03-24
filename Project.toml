@@ -3,6 +3,9 @@ uuid = "b20c7882-2490-4592-a606-fbbfe9e745e8"
 authors = ["Jan Weidner <jw3126@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+
 [compat]
 julia = "1"
 
