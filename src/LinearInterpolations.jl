@@ -44,37 +44,63 @@ end
     field_type(field_type(S, T), Ts...)
 end
 
-const ALLOWED_ONOUTSIDE_VALUES = [:replicate, :reflect, :error]
-
 
 Base.size(o::MapProductArray) = map(length, o.factors)
 
-function neighbors_and_weights1d_outside(xs, x, extrapolate)
-    if extrapolate === :error
-        msg = """
-            x=$x is not between first(xs)=$(first(xs)) and last(xs)=$(last(xs))
-            You can suppress this error by passing the `extrapolate` argument.
-            """
-            throw(ArgumentError(msg))
+const EXTRAPOLATE_SYMBOLS = [:replicate, :reflect, :error]
+
+function project1d(extrapolate::Symbol, xs, x)
+    if extrapolate === :replicate
+        project1d(Replicate(), xs, x)
     elseif extrapolate === :reflect
-        x_first = first(xs)
-        x_last = last(xs)
-        x_new = if x > x_last
-            2x_last - x
-        elseif x < x_first
-            2x_first - x
-        else
-            msg = "Cannot apply extrapolate=$extrapolate to x=$x"
-            throw(ArgumentError(msg))
-        end
-        return neighbors_and_weights1d(xs, x_new, extrapolate)
-    elseif extrapolate === :replicate
-        x_inside = clamp(x, first(xs), last(xs))
-        return neighbors_and_weights1d(xs, x_inside, :error)
+        project1d(Reflect(), xs, x)
+    elseif extrapolate === :error
+        project1d(Error(), xs, x)
     else
-        msg = """Unknown extrapolate = $extrapolate
-        Allowed values are:
-        $ALLOWED_ONOUTSIDE_VALUES
+        @argcheck extrapolate in EXTRAPOLATE_SYMBOLS
+        error("""Unreachable
+              extrapolate = $extrapolate
+              EXTRAPOLATE_SYMBOLS = $EXTRAPOLATE_SYMBOLS
+        """)
+    end
+end
+
+"""
+    Replicate()
+
+Extrapolate data by replacing out of grid points with the closest in grid point
+"""
+struct Replicate end
+
+function project1d(::Replicate, xs, x)
+    return clamp(x, first(xs), last(xs))
+end
+
+struct Reflect end
+
+function project1d(::Reflect, xs, x)
+    x_first = first(xs)
+    x_last = last(xs)
+    if x > x_last
+        project1d(Reflect(), xs, 2x_last - x)
+    elseif x < x_first
+        project1d(Reflect(), xs, 2x_first - x)
+    else
+        x
+    end
+end
+
+struct Error end
+
+function project1d(::Error, xs, x)
+    x_first = first(xs)
+    x_last = last(xs)
+    if (x_first <= x <= x_last)
+        x
+    else
+        msg = """
+        x=$x is not between first(xs)=$(first(xs)) and last(xs)=$(last(xs))
+        You can suppress this error by passing the `extrapolate` argument.
         """
         throw(ArgumentError(msg))
     end
@@ -98,20 +124,14 @@ function Base.getindex(o::TinyVector, i::Integer)
 end
 
 function neighbors_and_weights1d(xs, x, extrapolate=:error)
-    x_inside = clamp(x, first(xs), last(xs))
-    # is_outside = !(x ≈ x_inside)
-    is_outside = !(x == x_inside)
-    if is_outside
-        return neighbors_and_weights1d_outside(xs, x, extrapolate)
-    end
-    x = x_inside
+    x = project1d(extrapolate, xs, x)
     # searchsortedfirst: index of first value in xs greater than or equal to x
     # since we called clamp, we are inbounds
     ixu = searchsortedfirst(xs,x)
     xu = @inbounds xs[ixu]
     if x == xu
         T   = field_type(typeof(x), eltype(xs))
-        wts  = TinyVector(one(T))
+        wts = TinyVector(one(T))
         nbs = ixu:ixu
     else
         ixl = ixu - 1
@@ -134,6 +154,14 @@ function neighbors_and_weights(axes::NTuple{N, Any}, pt; extrapolate=:error) whe
     return nbs, wts
 end
 
+"""
+    combine(weights::AbstractArray, objects::AbstractArray)::Object
+
+Take a weighted collection of objects and combine them into a single object.
+The default behaviour is `sum(weights .* objects)`
+
+This `combine` can be overloaded to allow interpolation of objects that do not implement `*` or `+`.
+"""
 function combine(wts, objs)
     mapreduce(*, +, wts, objs)
 end
@@ -156,7 +184,9 @@ struct Interpolate{C,A,V,O}
     function Interpolate(combine, axes, values, extrapolate)
         @argcheck size(values) == map(length, axes)
         @argcheck Base.axes(values) == map(eachindex, axes)
-        @argcheck extrapolate in ALLOWED_ONOUTSIDE_VALUES
+        if extrapolate isa Symbol
+            @argcheck extrapolate in EXTRAPOLATE_SYMBOLS
+        end
         # some sanity checks, all of them O(ndims(values))
         # we assume issorted(xs), which wouldbe O(length(values)) to check
         @argcheck all( (!isempty).(axes)                      )

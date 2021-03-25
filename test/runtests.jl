@@ -47,7 +47,7 @@ end
 @testset "1d interpolate" begin
     for _ in 1:100
         xs = sort!(randn(10)); ys = randn(10);
-        extrapolate = rand(LinearInterpolations.ALLOWED_ONOUTSIDE_VALUES)
+        extrapolate = rand(LinearInterpolations.EXTRAPOLATE_SYMBOLS)
         if extrapolate == :error
             x = clamp(randn(), xs[1], xs[end])
         else
