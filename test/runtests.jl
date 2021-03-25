@@ -68,7 +68,6 @@ end
     end
     @test interpolate([10, 20], [2, 1], 30000, extrapolate=:replicate) ≈ 1
     @test interpolate([10, 20], [2, 1], 30, extrapolate=:reflect) ≈ 2
-    @test interpolate([10, 20], [2, 1], 30, extrapolate=:reflect) ≈ 2
     @test interpolate([10, 20], [2, 1], 22.5, extrapolate=:reflect) ≈ 1.25
 
     @inferred interpolate(1:2, [10, 20], 1)
@@ -88,6 +87,46 @@ end
         @test interpolate([0,1,1,2], [0,10,20,30], 1.5) ≈ 25
         @test interpolate([0,1,1,2], [0,10,20,30], 1.000000001) ≈ 20
         @test 10 <= interpolate([0,1,1,2], [0,10,20,30], 1.0) <= 20
+    end
+end
+
+@testset "interpolate 2d" begin
+    grid = (1:2, 1:3)
+    vals = [(1,1) (1,2) (1,3); (2,1) (2,2) (2,3)]
+    pt = [1.5, 1.1]
+    wts, nbs = interpolate(grid, vals, pt, combine=tuple)
+    @test nbs == [(1, 1) (1, 2); (2, 1) (2, 2)]
+    @test wts ≈ [0.45 0.05; 0.45 0.05]
+
+    grid = (1:2, 1:3)
+    vals = randn(2,3)
+    pt = [1.5, 1.1]
+    ret = interpolate(grid, vals, pt)
+    @test ret ≈ 0.45*vals[1,1] + 0.45*vals[2,1] + 0.05*vals[1,2] + 0.05*vals[2,2]
+end
+
+@testset "interpolate 3d" begin
+    for _ in 1:10
+        grid = (1:2, 1:3, 4:7)
+        vals = randn(2,3, 4)
+        pt = [1.5, 1.1, 6.2]
+        # ret = interpolate(grid, vals, pt)
+        ret = interpolate(grid, vals, pt)
+        wl1 = 0.5; wu1 = 0.5
+        wl2 = 0.9; wu2 = 0.1
+        wl3 = 0.8; wu3 = 0.2
+        il1 = 1; iu1 = 2
+        il2 = 1; iu2 = 2
+        il3 = 3; iu3 = 4
+        @test ret ≈
+            wl1*wl2*wl3*vals[il1,il2,il3] +
+            wl1*wl2*wu3*vals[il1,il2,iu3] +
+            wl1*wu2*wl3*vals[il1,iu2,il3] +
+            wl1*wu2*wu3*vals[il1,iu2,iu3] +
+            wu1*wl2*wl3*vals[iu1,il2,il3] +
+            wu1*wl2*wu3*vals[iu1,il2,iu3] +
+            wu1*wu2*wl3*vals[iu1,iu2,il3] +
+            wu1*wu2*wu3*vals[iu1,iu2,iu3]
     end
 end
 
@@ -119,5 +158,4 @@ end
 
     @inferred interpolate(xs, dists, pt)
     @inferred Interpolate(xs, dists)(pt)
-
 end
