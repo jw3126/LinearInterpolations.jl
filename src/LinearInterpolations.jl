@@ -1,5 +1,11 @@
 module LinearInterpolations
 
+
+@doc let path = joinpath(dirname(@__DIR__), "README.md")
+    include_dependency(path)
+    replace(read(path, String), r"^```julia"m => "```jldoctest README")
+end LinearInterpolations
+
 export neighbors_and_weights, interpolate, Interpolate
 
 using ArgCheck
@@ -92,24 +98,26 @@ function Base.getindex(o::TinyVector, i::Integer)
 end
 
 function neighbors_and_weights1d(xs, x, extrapolate=:error)
-    @argcheck !isempty(xs)
     x_inside = clamp(x, first(xs), last(xs))
-    is_outside = !(x ≈ x_inside)
+    # is_outside = !(x ≈ x_inside)
+    is_outside = !(x == x_inside)
     if is_outside
         return neighbors_and_weights1d_outside(xs, x, extrapolate)
     end
     x = x_inside
+    # searchsortedfirst: index of first value in xs greater than or equal to x
+    # since we called clamp, we are inbounds
     ixu = searchsortedfirst(xs,x)
-    xu = xs[ixu]
-    if x ≈ xu
+    xu = @inbounds xs[ixu]
+    if x == xu
         T   = field_type(typeof(x), eltype(xs))
         wts  = TinyVector(one(T))
         nbs = ixu:ixu
     else
         ixl = ixu - 1
-        xl = xs[ixl]
-        wl = (xu - x)/(xu - xl)
-        wu = (x - xl)/(xu - xl)
+        xl  = @inbounds xs[ixl]
+        wl  = (xu - x)/(xu - xl)
+        wu  = (x - xl)/(xu - xl)
         wts = TinyVector(wl, wu)
         nbs = ixl:ixu
     end
@@ -147,6 +155,7 @@ struct Interpolate{C,A,V,O}
     extrapolate::O
     function Interpolate(combine, axes, values, extrapolate)
         @argcheck size(values) == map(length, axes)
+        @argcheck Base.axes(values) == map(eachindex, axes)
         @argcheck extrapolate in ALLOWED_ONOUTSIDE_VALUES
         # some sanity checks, all of them O(ndims(values))
         # we assume issorted(xs), which wouldbe O(length(values)) to check
