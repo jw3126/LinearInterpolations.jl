@@ -1,6 +1,5 @@
 module LinearInterpolations
 
-
 @doc let path = joinpath(dirname(@__DIR__), "README.md")
     include_dependency(path)
     replace(read(path, String), r"^```julia"m => "```jldoctest README")
@@ -15,14 +14,14 @@ struct MapProductArray{T,N,F,Factors} <: AbstractArray{T,N}
     factors::Factors
 end
 
-function MapProductArray(f::F, factors::Factors) where {F, Factors}
+function MapProductArray(f::F, factors::Factors) where {F,Factors}
     N = length(factors)
     pt = map(first, factors)
     T = typeof(f(pt))
     return MapProductArray{T,N,F,Factors}(f, factors)
 end
 
-function Base.getindex(o::MapProductArray{T,N}, I::Vararg{Int, N}) where {T,N}
+function Base.getindex(o::MapProductArray{T,N}, I::Vararg{Int,N}) where {T,N}
     @boundscheck checkbounds(o, I...)
     xs = map(o.factors, I) do v, i
         @inbounds v[i]
@@ -34,7 +33,7 @@ end
     T
 end
 
-@inline function field_type(::Type{S}, ::Type{T}) where {S, T}
+@inline function field_type(::Type{S}, ::Type{T}) where {S,T}
     t = one(T)
     s = one(S)
     typeof((t - s) / (t + s))
@@ -111,8 +110,8 @@ struct TinyVector{T} <: AbstractVector{T}
     is_length_two::Bool
 end
 
-TinyVector(x)   = TinyVector((x,x), false)
-TinyVector(x,y) = TinyVector((x,y), true)
+TinyVector(x) = TinyVector((x, x), false)
+TinyVector(x, y) = TinyVector((x, y), true)
 
 function Base.size(o::TinyVector)
     (ifelse(o.is_length_two, 2, 1),)
@@ -123,28 +122,28 @@ function Base.getindex(o::TinyVector, i::Integer)
     @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
 end
 
-function neighbors_and_weights1d(xs, x, extrapolate=:error)
+function neighbors_and_weights1d(xs, x, extrapolate = :error)
     x = project1d(extrapolate, xs, x)
     # searchsortedfirst: index of first value in xs greater than or equal to x
     # since we called clamp, we are inbounds
-    ixu = searchsortedfirst(xs,x)
+    ixu = searchsortedfirst(xs, x)
     xu = @inbounds xs[ixu]
     if x == xu
-        T   = field_type(typeof(x), eltype(xs))
+        T = field_type(typeof(x), eltype(xs))
         wts = TinyVector(one(T))
         nbs = ixu:ixu
     else
         ixl = ixu - 1
-        xl  = @inbounds xs[ixl]
-        wl  = (xu - x)/(xu - xl)
-        wu  = (x - xl)/(xu - xl)
+        xl = @inbounds xs[ixl]
+        wl = (xu - x) / (xu - xl)
+        wu = (x - xl) / (xu - xl)
         wts = TinyVector(wl, wu)
         nbs = ixl:ixu
     end
     return (nbs, wts)
 end
 
-function neighbors_and_weights(axes::NTuple{N, Any}, pt; extrapolate=:error) where {N}
+function neighbors_and_weights(axes::NTuple{N,Any}, pt; extrapolate = :error) where {N}
     @argcheck length(axes) == length(pt)
     nbs_wts = map(axes, NTuple{N}(pt)) do xs, x
         neighbors_and_weights1d(xs, x, extrapolate)
@@ -166,7 +165,7 @@ function combine(wts, objs)
     mapreduce(*, +, wts, objs)
 end
 
-function interpolate(axes, objs, pt; extrapolate=:error, combine::C=combine) where {C}
+function interpolate(axes, objs, pt; extrapolate = :error, combine::C = combine) where {C}
     itp = Interpolate(combine, axes, objs, extrapolate)
     return itp(pt)
 end
@@ -189,12 +188,12 @@ struct Interpolate{C,A,V,O}
         end
         # some sanity checks, all of them O(ndims(values))
         # we assume issorted(xs), which wouldbe O(length(values)) to check
-        @argcheck all( (!isempty).(axes)                      )
-        @argcheck all( isfinite.(first.(axes))                )
-        @argcheck all( isfinite.(last.(axes))                 )
-        @argcheck all( first.(axes) .<= last.(axes)           )
-        @argcheck all( ndims.(axes) .== 1                     )
-        @argcheck all( eachindex.(axes) .== Base.axes(values) )
+        @argcheck all((!isempty).(axes))
+        @argcheck all(isfinite.(first.(axes)))
+        @argcheck all(isfinite.(last.(axes)))
+        @argcheck all(first.(axes) .<= last.(axes))
+        @argcheck all(ndims.(axes) .== 1)
+        @argcheck all(eachindex.(axes) .== Base.axes(values))
         C = typeof(combine)
         A = typeof(axes)
         V = typeof(values)
@@ -203,10 +202,15 @@ struct Interpolate{C,A,V,O}
     end
 end
 
-function Interpolate(xs::AbstractVector, ys::AbstractVector; combine=combine, extrapolate=:error)
+function Interpolate(
+    xs::AbstractVector,
+    ys::AbstractVector;
+    combine = combine,
+    extrapolate = :error,
+)
     return Interpolate(combine, (xs,), ys, extrapolate)
 end
-function Interpolate(axes, values; combine=combine, extrapolate=:error)
+function Interpolate(axes, values; combine = combine, extrapolate = :error)
     return Interpolate(combine, axes, values, extrapolate)
 end
 
@@ -223,7 +227,7 @@ function (o::Interpolate)(pt)
 end
 
 function (o::Interpolate)(pt::Tuple)
-    nbs, wts = neighbors_and_weights(o.axes, pt; extrapolate=o.extrapolate)
+    nbs, wts = neighbors_and_weights(o.axes, pt; extrapolate = o.extrapolate)
     o.combine(wts, view(o.values, nbs...))
 end
 
