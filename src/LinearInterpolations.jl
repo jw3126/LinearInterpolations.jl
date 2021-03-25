@@ -1,6 +1,6 @@
 module LinearInterpolations
 
-export neighbors_and_weights, linterpol, Linterpol
+export neighbors_and_weights, interpolate, Interpolate
 
 using ArgCheck
 
@@ -43,14 +43,14 @@ const ALLOWED_ONOUTSIDE_VALUES = [:replicate, :reflect, :error]
 
 Base.size(o::MapProductArray) = map(length, o.factors)
 
-function neighbors_and_weights1d_outside(xs, x, onoutside)
-    if onoutside === :error
+function neighbors_and_weights1d_outside(xs, x, extrapolate)
+    if extrapolate === :error
         msg = """
             x=$x is not between first(xs)=$(first(xs)) and last(xs)=$(last(xs))
-            You can suppress this error by passing the `onoutside` argument.
+            You can suppress this error by passing the `extrapolate` argument.
             """
             throw(ArgumentError(msg))
-    elseif onoutside === :reflect
+    elseif extrapolate === :reflect
         x_first = first(xs)
         x_last = last(xs)
         x_new = if x > x_last
@@ -58,15 +58,15 @@ function neighbors_and_weights1d_outside(xs, x, onoutside)
         elseif x < x_first
             2x_first - x
         else
-            msg = "Cannot apply onoutside=$onoutside to x=$x"
+            msg = "Cannot apply extrapolate=$extrapolate to x=$x"
             throw(ArgumentError(msg))
         end
-        return neighbors_and_weights1d(xs, x_new, onoutside)
-    elseif onoutside === :replicate
+        return neighbors_and_weights1d(xs, x_new, extrapolate)
+    elseif extrapolate === :replicate
         x_inside = clamp(x, first(xs), last(xs))
         return neighbors_and_weights1d(xs, x_inside, :error)
     else
-        msg = """Unknown onoutside = $onoutside
+        msg = """Unknown extrapolate = $extrapolate
         Allowed values are:
         $ALLOWED_ONOUTSIDE_VALUES
         """
@@ -91,12 +91,12 @@ function Base.getindex(o::TinyVector, i::Integer)
     @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
 end
 
-function neighbors_and_weights1d(xs, x, onoutside=:error)
+function neighbors_and_weights1d(xs, x, extrapolate=:error)
     @argcheck !isempty(xs)
     x_inside = clamp(x, first(xs), last(xs))
     is_outside = !(x ≈ x_inside)
     if is_outside
-        return neighbors_and_weights1d_outside(xs, x, onoutside)
+        return neighbors_and_weights1d_outside(xs, x, extrapolate)
     end
     x = x_inside
     ixu = searchsortedfirst(xs,x)
@@ -116,10 +116,10 @@ function neighbors_and_weights1d(xs, x, onoutside=:error)
     return (nbs, wts)
 end
 
-function neighbors_and_weights(axes::NTuple{N, Any}, pt; onoutside=:error) where {N}
+function neighbors_and_weights(axes::NTuple{N, Any}, pt; extrapolate=:error) where {N}
     @argcheck length(axes) == length(pt)
     nbs_wts = map(axes, NTuple{N}(pt)) do xs, x
-        neighbors_and_weights1d(xs, x, onoutside)
+        neighbors_and_weights1d(xs, x, extrapolate)
     end
     wts = MapProductArray(prod, map(last, nbs_wts))
     nbs = map(first, nbs_wts)
@@ -130,24 +130,24 @@ function combine(wts, objs)
     mapreduce(*, +, wts, objs)
 end
 
-function linterpol(axes, objs, pt; onoutside=:error, combine::C=combine) where {C}
-    itp = Linterpol(combine, axes, objs, onoutside)
+function interpolate(axes, objs, pt; extrapolate=:error, combine::C=combine) where {C}
+    itp = Interpolate(combine, axes, objs, extrapolate)
     return itp(pt)
 end
 
-function linterpol(xs::AbstractVector, ys::AbstractVector, pt; kw...)
+function interpolate(xs::AbstractVector, ys::AbstractVector, pt; kw...)
     axes = (xs,)
-    return linterpol(axes, ys, pt; kw...)
+    return interpolate(axes, ys, pt; kw...)
 end
 
-struct Linterpol{C,A,V,O}
+struct Interpolate{C,A,V,O}
     combine::C
     axes::A
     values::V
-    onoutside::O
-    function Linterpol(combine, axes, values, onoutside)
+    extrapolate::O
+    function Interpolate(combine, axes, values, extrapolate)
         @argcheck size(values) == map(length, axes)
-        @argcheck onoutside in ALLOWED_ONOUTSIDE_VALUES
+        @argcheck extrapolate in ALLOWED_ONOUTSIDE_VALUES
         # some sanity checks, all of them O(ndims(values))
         # we assume issorted(xs), which wouldbe O(length(values)) to check
         @argcheck all( (!isempty).(axes)                      )
@@ -159,32 +159,32 @@ struct Linterpol{C,A,V,O}
         C = typeof(combine)
         A = typeof(axes)
         V = typeof(values)
-        O = typeof(onoutside)
-        return new{C,A,V,O}(combine, axes, values, onoutside)
+        O = typeof(extrapolate)
+        return new{C,A,V,O}(combine, axes, values, extrapolate)
     end
 end
 
-function Linterpol(xs::AbstractVector, ys::AbstractVector; combine=combine, onoutside=:error)
-    return Linterpol(combine, (xs,), ys, onoutside)
+function Interpolate(xs::AbstractVector, ys::AbstractVector; combine=combine, extrapolate=:error)
+    return Interpolate(combine, (xs,), ys, extrapolate)
 end
-function Linterpol(axes, values; combine=combine, onoutside=:error)
-    return Linterpol(combine, axes, values, onoutside)
+function Interpolate(axes, values; combine=combine, extrapolate=:error)
+    return Interpolate(combine, axes, values, extrapolate)
 end
 
-axestype(::Linterpol{C,A}) where {C,A} = A
-axestype(::Type{<:Linterpol{C,A}}) where {C,A} = A
+axestype(::Interpolate{C,A}) where {C,A} = A
+axestype(::Type{<:Interpolate{C,A}}) where {C,A} = A
 _length(::Type{<:NTuple{N,Any}}) where {N} = N
-Base.ndims(L::Type{<:Linterpol}) = _length(axestype(L))
-Base.ndims(o::Linterpol) = ndims(typeof(o))
+Base.ndims(L::Type{<:Interpolate}) = _length(axestype(L))
+Base.ndims(o::Interpolate) = ndims(typeof(o))
 
-function (o::Linterpol)(pt)
+function (o::Interpolate)(pt)
     @argcheck length(pt) == ndims(o)
     pt2 = NTuple{ndims(o)}(pt)
     return o(pt2)
 end
 
-function (o::Linterpol)(pt::Tuple)
-    nbs, wts = neighbors_and_weights(o.axes, pt; onoutside=o.onoutside)
+function (o::Interpolate)(pt::Tuple)
+    nbs, wts = neighbors_and_weights(o.axes, pt; extrapolate=o.extrapolate)
     o.combine(wts, view(o.values, nbs...))
 end
 

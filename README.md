@@ -25,23 +25,23 @@ julia> using LinearInterpolations
 
 julia> xs = 1:3; ys=[10, 100, 1000]; # 1d
 
-julia> linterpol(xs, ys, 1)
+julia> interpolate(xs, ys, 1)
 10.0
 
-julia> linterpol(xs, ys, 1.5)
+julia> interpolate(xs, ys, 1.5)
 55.0
 
-julia> pt = [1.5]; linterpol(xs, ys, pt)
+julia> pt = [1.5]; interpolate(xs, ys, pt)
 55.0
 
-julia> itp = Linterpol(xs, ys); # construct a callable for convenience
+julia> itp = Interpolate(xs, ys); # construct a callable for convenience
 
 julia> itp(1.5)
 55.0
 
 julia> grid=(1:3, [10, 15]); vals = [1 2; 3 4; 5 6]; pt=[1,10]; # multi dimensional
 
-julia> linterpol(grid, vals, pt)
+julia> interpolate(grid, vals, pt)
 1.0
 
 julia> function winner_takes_it_all(wts, objs)
@@ -52,13 +52,13 @@ end
 
 julia> xs = 1:4; ys=[:no, :addition, :or, :multiplication];
 
-julia> linterpol(xs, ys, 1.1, combine=winner_takes_it_all)
+julia> interpolate(xs, ys, 1.1, combine=winner_takes_it_all)
 :no
 
-julia> linterpol(xs, ys, 1.9, combine=winner_takes_it_all)
+julia> interpolate(xs, ys, 1.9, combine=winner_takes_it_all)
 :addition
 
-julia> linterpol(xs, ys, 3.7, combine=winner_takes_it_all)
+julia> interpolate(xs, ys, 3.7, combine=winner_takes_it_all)
 :multiplication
 ```
 
