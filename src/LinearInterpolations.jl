@@ -149,7 +149,7 @@ function _neighbors_and_weights1d(xs, x, extrapolate)
     xu = @inbounds xs[ixu]
     xl = @inbounds xs[ixl]
     xu_eq_xl = xu == xl
-    w_tot = ifelse(xu_eq_xl, one(xu), xu - xl)
+    w_tot = ifelse(xu_eq_xl, one(xu - xl), xu - xl)
     l = ifelse(xu_eq_xl, one(xu - x), xu - x)
     u = ifelse(xu_eq_xl, zero(x - xl), x - xl)
     wl = l / w_tot
@@ -188,7 +188,7 @@ This `combine` can be overloaded to allow interpolation of objects that do not i
         next_wts === nothing && break
         wi, state_wts = next_wts
         oi, state_objs = iterate(objs, state_objs)
-        ret += wi*oi
+        ret = muladd(wi,oi,ret)
     end
     return ret
 end
