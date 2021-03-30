@@ -167,3 +167,21 @@ end
     @inferred interpolate(xs, dists, pt)
     @inferred Interpolate(xs, dists)(pt)
 end
+
+@testset "internals" begin
+    xs = sort(randn(3))
+    itp = Interpolate((xs,xs), randn(3,3))
+    @inferred LinearInterpolations.tupelize(itp, [1.0, 2.0])
+    @inferred LinearInterpolations.tupelize(itp, [1, 2])
+    @inferred LinearInterpolations.tupelize(itp, (1.0, 2))
+
+    itp = Interpolate((xs,xs,xs), randn(3,3,3))
+    @inferred LinearInterpolations.tupelize(itp, [1  , 2, 1.0])
+    @inferred LinearInterpolations.tupelize(itp, [1  , 2, 3  ])
+    @inferred LinearInterpolations.tupelize(itp, (1.0, 2, 1f0))
+
+    itp = Interpolate((xs,xs,xs,xs), randn(3,3,3,3))
+    @inferred LinearInterpolations.tupelize(itp, [1  , 2, 1.0, 2.0 ])
+    @inferred LinearInterpolations.tupelize(itp, [1  , 2, 3  , 4   ])
+    @inferred LinearInterpolations.tupelize(itp, (1.0, 2, 1f0, 0x12))
+end

@@ -180,7 +180,7 @@ struct Interpolate{C,A,V,O}
     axes::A
     values::V
     extrapolate::O
-    function Interpolate(combine, axes, values, extrapolate)
+    function Interpolate(combine, axes::Tuple, values, extrapolate)
         @argcheck size(values) == map(length, axes)
         @argcheck Base.axes(values) == map(eachindex, axes)
         if extrapolate isa Symbol
@@ -214,15 +214,44 @@ function Interpolate(axes, values; combine = combine, extrapolate = :error)
     return Interpolate(combine, axes, values, extrapolate)
 end
 
-axestype(::Interpolate{C,A}) where {C,A} = A
+axestype(o::Interpolate) = axestype(typeof(o))
 axestype(::Type{<:Interpolate{C,A}}) where {C,A} = A
 _length(::Type{<:NTuple{N,Any}}) where {N} = N
 Base.ndims(L::Type{<:Interpolate}) = _length(axestype(L))
 Base.ndims(o::Interpolate) = ndims(typeof(o))
 
+NDims(o::Interpolate) = NDims(typeof(o))
+NDims(::Type{<:Interpolate{C, <: NTuple{N, Any}}}) where {C,N} = Val(N)
+
+function _make_NTuple(itr, ::Val{0})
+    return ()
+end
+function _make_NTuple(itr, ::Val{1})
+    x1, = itr
+    return (x1,)
+end
+function _make_NTuple(itr, ::Val{2})
+    x1,x2 = itr
+    promote(x1,x2)
+end
+function _make_NTuple(itr, ::Val{3})
+    x1,x2,x3 = itr
+    promote(x1,x2,x3)
+end
+function _make_NTuple(itr, ::Val{4})
+    x1,x2,x3,x4 = itr
+    promote(x1,x2,x3,x4)
+end
+function _make_NTuple(itr, ::Val{N}) where {N}
+    ret = promote(NTuple{N,Any}(itr)...)
+    ret::NTuple{N, first(ret)}
+end
+
+tupelize(itp, pt) = _make_NTuple(pt, NDims(itp))
+
 function (o::Interpolate)(pt)
     @argcheck length(pt) == ndims(o)
-    pt2 = NTuple{ndims(o)}(pt)
+    pt2 = tupelize(o, pt)
     return o(pt2)
 end
 
