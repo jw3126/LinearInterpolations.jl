@@ -5,7 +5,7 @@ module LinearInterpolations
     replace(read(path, String), r"^```julia"m => "```jldoctest README")
 end LinearInterpolations
 
-export neighbors_and_weights, interpolate, Interpolate
+export interpolate, Interpolate
 
 using ArgCheck
 
@@ -122,7 +122,7 @@ function Base.getindex(o::TinyVector, i::Integer)
     @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
 end
 
-function neighbors_and_weights1d(xs, x, extrapolate = :error)
+function neighbors_and_weights1d(xs, x, extrapolate)
     x = project1d(extrapolate, xs, x)
     # searchsortedfirst: index of first value in xs greater than or equal to x
     # since we called clamp, we are inbounds
@@ -143,10 +143,11 @@ function neighbors_and_weights1d(xs, x, extrapolate = :error)
     return (nbs, wts)
 end
 
-function neighbors_and_weights(axes::NTuple{N,Any}, pt; extrapolate = :error) where {N}
-    @argcheck length(axes) == length(pt)
-    nbs_wts = map(axes, NTuple{N}(pt)) do xs, x
-        neighbors_and_weights1d(xs, x, extrapolate)
+function neighbors_and_weights(axes::NTuple{N,Any}, pt, extrapolate) where {N}
+    nbs_wts = let extrapolate=extrapolate
+        map(axes, NTuple{N}(pt)) do xs, x
+            neighbors_and_weights1d(xs, x, extrapolate)
+        end
     end
     wts = MapProductArray(prod, map(last, nbs_wts))
     nbs = map(first, nbs_wts)
@@ -162,7 +163,18 @@ The default behaviour is `sum(weights .* objects)`
 This `combine` can be overloaded to allow interpolation of objects that do not implement `*` or `+`.
 """
 function combine(wts, objs)
-    mapreduce(*, +, wts, objs)
+    #mapreduce(*, +, wts, objs)
+    w1, state_wts = iterate(wts)
+    o1, state_objs = iterate(objs)
+    ret = w1*o1
+    while true
+        next_wts = iterate(wts, state_wts)
+        next_wts === nothing && break
+        wi, state_wts = next_wts
+        oi, state_objs = iterate(objs, state_objs)
+        ret += wi*oi
+    end
+    return ret
 end
 
 function interpolate(axes, objs, pt; extrapolate = :error, combine::C = combine) where {C}
@@ -256,7 +268,7 @@ function (o::Interpolate)(pt)
 end
 
 function (o::Interpolate)(pt::Tuple)
-    nbs, wts = neighbors_and_weights(o.axes, pt; extrapolate = o.extrapolate)
+    nbs, wts = neighbors_and_weights(o.axes, pt, o.extrapolate)
     o.combine(wts, view(o.values, nbs...))
 end
 
