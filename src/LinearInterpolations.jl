@@ -179,7 +179,26 @@ The default behaviour is `sum(weights .* objects)`
 This `combine` can be overloaded to allow interpolation of objects that do not implement `*` or `+`.
 """
 @inline function combine(wts, objs)
-    #mapreduce(*, +, wts, objs)
+    _combine(wts, objs)
+end
+function _combine(wts::AbstractVector, objs::AbstractVector)
+    w1,w2 = wts
+    o1,o2 = objs
+    return muladd(w2,o2,w1*o1)
+end
+function _combine(wts::AbstractMatrix, objs::AbstractMatrix)
+    w1,w2,w3,w4 = wts
+    o1,o2,o3,o4 = objs
+    (w1*o1) + (w2*o2) + (w3*o3) + (w4*o4)
+end
+function _combine(wts::AbstractArray{Wt,3}, objs::AbstractArray{Obj,3}) where {Wt, Obj}
+    w1,w2,w3,w4,w5,w6,w7,w8, = wts
+    o1,o2,o3,o4,o5,o6,o7,o8 = objs
+    (w1*o1) + (w2*o2) + (w3*o3) + (w4*o4) + (w5*o5) + (w6*o6) + (w7*o7) + (w8*o8)
+end
+
+function _combine(wts, objs)
+    #mapreduce(*, +, wts, objs) # this allocates urgs
     w1, state_wts = iterate(wts)
     o1, state_objs = iterate(objs)
     ret = w1*o1
