@@ -9,42 +9,76 @@ export interpolate, Interpolate
 
 using ArgCheck
 
-struct MapProductArray{T,N,F,Factors} <: AbstractArray{T,N}
-    f::F
+struct TinyVector{T} <: AbstractVector{T}
+    elements::NTuple{2,T}
+end
+TinyVector(x, y) = TinyVector(promote(x,y))
+Base.size(o::TinyVector) = (2,)
+function Base.getindex(o::TinyVector, i::Integer)
+    @boundscheck checkbounds(o, i)
+    @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
+end
+
+struct WeightsArray{T,N,Factors} <: AbstractArray{T,N}
     factors::Factors
 end
-
-function MapProductArray(f::F, factors::Factors) where {F,Factors}
-    N = length(factors)
-    pt = map(first, factors)
-    T = typeof(f(pt))
-    return MapProductArray{T,N,F,Factors}(f, factors)
+@inline function WeightsArray(factors::NTuple{N, TinyVector}) where {N}
+    T = promote_type(map(eltype, factors)...)
+    Factors = typeof(factors)
+    return WeightsArray{T,N,Factors}(factors)
 end
-
-function Base.getindex(o::MapProductArray{T,N}, I::Vararg{Int,N}) where {T,N}
+function Base.size(o::WeightsArray{T,N}) where {T,N}
+    return ntuple(_->2, Val(N))
+end
+function Base.getindex(o::WeightsArray{T,N}, I::Vararg{Int,N}) where {T,N}
     @boundscheck checkbounds(o, I...)
     xs = map(o.factors, I) do v, i
         @inbounds v[i]
     end
-    return o.f(xs)
+    prod(xs)::T
 end
 
-@inline function field_type(::Type{T}) where {T}
-    T
+struct NeighborsArray{T,N,Objs, Inds} <: AbstractArray{T,N}
+    objs::Objs
+    inds::Inds
+end
+function Base.size(o::NeighborsArray{T,N}) where {T,N}
+    ntuple(_->2, Val(N))
+end
+function Base.getindex(o::NeighborsArray{T,N}, I::Vararg{Int, N}) where {T,N}
+    @boundscheck checkbounds(o, I...)
+    inds_big = map(o.inds, I) do inds, i
+        @inbounds inds[i]
+    end
+    @inbounds o.objs[inds_big...]
+end
+function NeighborsArray(objs::AbstractArray{T,N}, inds::NTuple{N,TinyVector}) where {T,N}
+    Objs = typeof(objs)
+    Inds = typeof(inds)
+    NeighborsArray{T,N,Objs, Inds}(objs,inds)
 end
 
-@inline function field_type(::Type{S}, ::Type{T}) where {S,T}
-    t = one(T)
-    s = one(S)
-    typeof((t - s) / (t + s))
-end
 
-@inline function field_type(S, T, Ts...)
-    field_type(field_type(S, T), Ts...)
-end
-
-
-Base.size(o::MapProductArray) = map(length, o.factors)
+# struct MapProductArray{T,N,F,Factors} <: AbstractArray{T,N}
+#     f::F
+#     factors::Factors
+# end
+#
+# function MapProductArray(f::F, factors::Factors) where {F,Factors}
+#     N = length(factors)
+#     pt = map(first, factors)
+#     T = typeof(f(pt))
+#     return MapProductArray{T,N,F,Factors}(f, factors)
+# end
+#
+# function Base.getindex(o::MapProductArray{T,N}, I::Vararg{Int,N}) where {T,N}
+#     @boundscheck checkbounds(o, I...)
+#     xs = map(o.factors, I) do v, i
+#         @inbounds v[i]
+#     end
+#     return o.f(xs)
+# end
+# Base.size(o::MapProductArray) = map(length, o.factors)
 
 const EXTRAPOLATE_SYMBOLS = [:replicate, :reflect, :error]
 
@@ -105,51 +139,33 @@ function project1d(::Error, xs, x)
     end
 end
 
-struct TinyVector{T} <: AbstractVector{T}
-    elements::NTuple{2,T}
-    is_length_two::Bool
-end
-
-TinyVector(x) = TinyVector((x, x), false)
-TinyVector(x, y) = TinyVector((x, y), true)
-
-function Base.size(o::TinyVector)
-    (ifelse(o.is_length_two, 2, 1),)
-end
-
-function Base.getindex(o::TinyVector, i::Integer)
-    @boundscheck checkbounds(o, i)
-    @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
-end
-
-function neighbors_and_weights1d(xs, x, extrapolate)
+function _neighbors_and_weights1d(xs, x, extrapolate)
     x = project1d(extrapolate, xs, x)
     # searchsortedfirst: index of first value in xs greater than or equal to x
     # since we called clamp, we are inbounds
     ixu = searchsortedfirst(xs, x)
+    ixu = ifelse(ixu == firstindex(xs), ixu + 1, ixu)
+    ixl = ixu - 1
     xu = @inbounds xs[ixu]
-    if x == xu
-        T = field_type(typeof(x), eltype(xs))
-        wts = TinyVector(one(T))
-        nbs = ixu:ixu
-    else
-        ixl = ixu - 1
-        xl = @inbounds xs[ixl]
-        wl = (xu - x) / (xu - xl)
-        wu = (x - xl) / (xu - xl)
-        wts = TinyVector(wl, wu)
-        nbs = ixl:ixu
-    end
+    xl = @inbounds xs[ixl]
+    xu_eq_xl = xu == xl
+    w_tot = ifelse(xu_eq_xl, one(xu), xu - xl)
+    l = ifelse(xu_eq_xl, one(xu - x), xu - x)
+    u = ifelse(xu_eq_xl, zero(x - xl), x - xl)
+    wl = l / w_tot
+    wu = u / w_tot
+    wts = TinyVector(wl, wu)
+    nbs = TinyVector(ixl, ixu)
     return (nbs, wts)
 end
 
-function neighbors_and_weights(axes::NTuple{N,Any}, pt, extrapolate) where {N}
+function _neighbors_and_weights(axes::NTuple{N,Any}, pt, extrapolate) where {N}
     nbs_wts = let extrapolate=extrapolate
         map(axes, NTuple{N}(pt)) do xs, x
-            neighbors_and_weights1d(xs, x, extrapolate)
+            _neighbors_and_weights1d(xs, x, extrapolate)
         end
     end
-    wts = MapProductArray(prod, map(last, nbs_wts))
+    wts = WeightsArray(map(last, nbs_wts))
     nbs = map(first, nbs_wts)
     return nbs, wts
 end
@@ -162,7 +178,7 @@ The default behaviour is `sum(weights .* objects)`
 
 This `combine` can be overloaded to allow interpolation of objects that do not implement `*` or `+`.
 """
-function combine(wts, objs)
+@inline function combine(wts, objs)
     #mapreduce(*, +, wts, objs)
     w1, state_wts = iterate(wts)
     o1, state_objs = iterate(objs)
@@ -194,6 +210,7 @@ struct Interpolate{C,A,V,O}
     extrapolate::O
     function Interpolate(combine, axes::Tuple, values, extrapolate)
         @argcheck size(values) == map(length, axes)
+        @argcheck all(size(values) .>= 2)
         @argcheck Base.axes(values) == map(eachindex, axes)
         if extrapolate isa Symbol
             @argcheck extrapolate in EXTRAPOLATE_SYMBOLS
@@ -268,8 +285,9 @@ function (o::Interpolate)(pt)
 end
 
 function (o::Interpolate)(pt::Tuple)
-    nbs, wts = neighbors_and_weights(o.axes, pt, o.extrapolate)
-    o.combine(wts, view(o.values, nbs...))
+    nbs, wts = _neighbors_and_weights(o.axes, pt, o.extrapolate)
+    objs = NeighborsArray(o.values, nbs)
+    o.combine(wts, objs)
 end
 
 end

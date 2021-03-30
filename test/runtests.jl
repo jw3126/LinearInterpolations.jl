@@ -1,48 +1,49 @@
 using LinearInterpolations
-using LinearInterpolations: neighbors_and_weights1d, neighbors_and_weights
+using LinearInterpolations: _neighbors_and_weights, _neighbors_and_weights1d
 using Test
 using ArgCheck
+using BenchmarkTools
 
-@testset "neighbors_and_weights" begin
-    @inferred neighbors_and_weights((1:3,), 2, :error)
-    @inferred neighbors_and_weights(([1.0, 2.0],), Float32(2), :error)
-    @inferred neighbors_and_weights(([1.0, 2.0], Base.OneTo(10)), [1, 2], :error)
+@testset "_neighbors_and_weights" begin
+    @inferred _neighbors_and_weights((1:3,), 2, :error)
+    @inferred _neighbors_and_weights(([1.0, 2.0],), Float32(2), :error)
+    @inferred _neighbors_and_weights(([1.0, 2.0], Base.OneTo(10)), [1, 2], :error)
 
     xs = 1:10
     x = 3.3
     axs = (xs,)
-    nbs, wts = @inferred neighbors_and_weights(axs, x, :error)
+    nbs, wts = @inferred _neighbors_and_weights(axs, x, :error)
     @test nbs == (3:4,)
     @test wts ≈ [0.7, 0.3]
 
     axs = (1:10, 2:3)
     pt = (3.3, 2.0)
-    nbs, wts = @inferred neighbors_and_weights(axs, pt, :error)
-    @test nbs == (3:4, 1:1)
-    @test wts ≈ [0.7, 0.3]
+    nbs, wts = @inferred _neighbors_and_weights(axs, pt, :error)
+    @test nbs == (3:4, 1:2)
+    @test wts ≈ [0.7 0; 0.3 0]
 
 end
 
-@testset "neighbors_and_weights1d" begin
-    @inferred neighbors_and_weights1d([10, 20], 30, :replicate)
+@testset "_neighbors_and_weights1d" begin
+    @inferred _neighbors_and_weights1d([10, 20], 30, :replicate)
 
-    @test neighbors_and_weights1d([10, 20, 30], 10, :error) == (1:1, [1.0])
-    @test neighbors_and_weights1d([10, 20, 30], 11, :error) == (1:2, [0.9, 0.1])
-    @test neighbors_and_weights1d([10, 20, 30], 11, :error) == (1:2, [0.9, 0.1])
-    @test neighbors_and_weights1d([10, 20, 30], 20, :error) == (2:2, [1.0])
-    @test neighbors_and_weights1d([10, 20, 30], 25, :error) == (2:3, [0.5, 0.5])
-    @test neighbors_and_weights1d([10, 20, 30], 30, :error) == (3:3, [1.0])
-    @test neighbors_and_weights1d([10, 20], 30, :replicate) == (2:2, [1.0])
-    @test neighbors_and_weights1d([10, 20], 0, :replicate) == (1:1, [1.0])
-    @test neighbors_and_weights1d([10, 20], 25, :reflect) == (1:2, [0.5, 0.5])
-    @test neighbors_and_weights1d([10, 20], 5, :reflect) == (1:2, [0.5, 0.5])
-    @test neighbors_and_weights1d([10, 20], 35, :reflect) == (1:2, [0.5, 0.5])
+    @test _neighbors_and_weights1d([10, 20, 30], 10, :error) == (1:2, [1.0, 0.0])
+    @test _neighbors_and_weights1d([10, 20, 30], 11, :error) == (1:2, [0.9, 0.1])
+    @test _neighbors_and_weights1d([10, 20, 30], 11, :error) == (1:2, [0.9, 0.1])
+    @test _neighbors_and_weights1d([10, 20, 30], 20, :error) == (1:2, [0.0, 1.0])
+    @test _neighbors_and_weights1d([10, 20, 30], 25, :error) == (2:3, [0.5, 0.5])
+    @test _neighbors_and_weights1d([10, 20, 30], 30, :error) == (2:3, [0.0, 1.0])
+    @test _neighbors_and_weights1d([10, 20], 30, :replicate) == (1:2, [0.0, 1.0])
+    @test _neighbors_and_weights1d([10, 20], 0, :replicate) == (1:2, [1.0, 0.0])
+    @test _neighbors_and_weights1d([10, 20], 25, :reflect) == (1:2, [0.5, 0.5])
+    @test _neighbors_and_weights1d([10, 20], 5, :reflect) == (1:2, [0.5, 0.5])
+    @test _neighbors_and_weights1d([10, 20], 35, :reflect) == (1:2, [0.5, 0.5])
 
-    @test_throws ArgumentError neighbors_and_weights1d([10, 20], 30, :error)
-    @test_throws ArgumentError neighbors_and_weights1d([10, 20], 15, :nonsense)
-    @test_throws ArgumentError neighbors_and_weights1d([10, 20], 30, :nonsense)
-    @test_throws ArgumentError neighbors_and_weights1d([10, 20, 30], 9,:error)
-    @test_throws ArgumentError neighbors_and_weights1d([10, 20, 30], 31, :error)
+    @test_throws ArgumentError _neighbors_and_weights1d([10, 20], 30, :error)
+    @test_throws ArgumentError _neighbors_and_weights1d([10, 20], 15, :nonsense)
+    @test_throws ArgumentError _neighbors_and_weights1d([10, 20], 30, :nonsense)
+    @test_throws ArgumentError _neighbors_and_weights1d([10, 20, 30], 9,:error)
+    @test_throws ArgumentError _neighbors_and_weights1d([10, 20, 30], 31, :error)
 end
 
 @testset "1d interpolate" begin
@@ -80,6 +81,7 @@ end
     @inferred interpolate(1:2, [10, 20], 1.0, extrapolate = :error)
     @test_throws ArgumentError interpolate(1:2, [10, 20, 30], 0.9)
     @test_throws ArgumentError interpolate(1:2, [10, 20, 30], 2.1)
+    @test_throws ArgumentError interpolate(1:1, [10], 10)
     @test_throws ArgumentError interpolate(1:2, [10, 20], 2.1, extrapolate = :nonsense)
     @test_throws ArgumentError Interpolate(1:2, [10, 20], extrapolate = :nonsense)
 
@@ -200,7 +202,9 @@ end
         vals = randn(ntuple(_->3, dim)...)
         itp = @inferred Interpolate(axs, vals, extrapolate=LinearInterpolations.Replicate())
         pt = ntuple(_->0.0, dim)
+        Float64[1:dim...]
         @inferred itp(pt)
-        @test_broken 0 == @allocated itp(pt)
+        @btime $itp($pt)
+        @test (@allocated itp(pt)) < 20
     end
 end
