@@ -58,28 +58,6 @@ function NeighborsArray(objs::AbstractArray{T,N}, inds::NTuple{N,TinyVector}) wh
     NeighborsArray{T,N,Objs, Inds}(objs,inds)
 end
 
-
-# struct MapProductArray{T,N,F,Factors} <: AbstractArray{T,N}
-#     f::F
-#     factors::Factors
-# end
-#
-# function MapProductArray(f::F, factors::Factors) where {F,Factors}
-#     N = length(factors)
-#     pt = map(first, factors)
-#     T = typeof(f(pt))
-#     return MapProductArray{T,N,F,Factors}(f, factors)
-# end
-#
-# function Base.getindex(o::MapProductArray{T,N}, I::Vararg{Int,N}) where {T,N}
-#     @boundscheck checkbounds(o, I...)
-#     xs = map(o.factors, I) do v, i
-#         @inbounds v[i]
-#     end
-#     return o.f(xs)
-# end
-# Base.size(o::MapProductArray) = map(length, o.factors)
-
 const EXTRAPOLATE_SYMBOLS = [:replicate, :reflect, :error]
 
 function project1d(extrapolate::Symbol, xs, x)
