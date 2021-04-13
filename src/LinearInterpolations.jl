@@ -58,7 +58,7 @@ function NeighborsArray(objs::AbstractArray{T,N}, inds::NTuple{N,TinyVector}) wh
     NeighborsArray{T,N,Objs, Inds}(objs,inds)
 end
 
-const EXTRAPOLATE_SYMBOLS = [:replicate, :reflect, :error]
+const EXTRAPOLATE_SYMBOLS = [:replicate, :reflect, :error, :fuzzy]
 
 function project1d(extrapolate::Symbol, xs, x)
     if extrapolate === :replicate
@@ -67,12 +67,37 @@ function project1d(extrapolate::Symbol, xs, x)
         project1d(Reflect(), xs, x)
     elseif extrapolate === :error
         project1d(Error(), xs, x)
+    elseif extrapolate === :fuzzy
+        project1d(Fuzzy(), xs, x)
     else
         @argcheck extrapolate in EXTRAPOLATE_SYMBOLS
         error("""Unreachable
               extrapolate = $extrapolate
               EXTRAPOLATE_SYMBOLS = $EXTRAPOLATE_SYMBOLS
         """)
+    end
+end
+
+struct Fuzzy{K <: NamedTuple}
+    kw::K
+end
+function Fuzzy(;kw...)
+    Fuzzy((;kw...))
+end
+
+function project1d(fuzzy::Fuzzy, xs, x)
+    x_inside = clamp(x, first(xs), last(xs))
+    if isapprox(x, x_inside; fuzzy.kw...)
+        x_inside
+    else
+        msg = """
+        x=$x is not approximately between first(xs)=$(first(xs)) and last(xs)=$(last(xs))
+        Further information:
+        x = $x
+        x_inside = $x_inside
+        extrapolate = $fuzzy
+        """
+        throw(ArgumentError(msg))
     end
 end
 

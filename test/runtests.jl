@@ -1,5 +1,6 @@
 using LinearInterpolations
 using LinearInterpolations: _neighbors_and_weights, _neighbors_and_weights1d
+const ITP = LinearInterpolations
 using Test
 using ArgCheck
 using BenchmarkTools
@@ -51,10 +52,12 @@ end
         xs = sort!(randn(10))
         ys = randn(10)
         extrapolate = rand(LinearInterpolations.EXTRAPOLATE_SYMBOLS)
-        if extrapolate == :error
-            x = clamp(randn(), xs[1], xs[end])
+        x = if extrapolate == :error
+            clamp(randn(), xs[1], xs[end])
+        elseif extrapolate == :fuzzy
+            clamp(randn(), prevfloat(xs[1],100), nextfloat(xs[end], 100))
         else
-            x = randn()
+            randn()
         end
         @inferred interpolate(xs, ys, x; extrapolate = extrapolate)
         @inferred Interpolate(xs, ys; extrapolate = extrapolate)
@@ -68,12 +71,19 @@ end
     @test interpolate(1:2, [10, 20], 2) ≈ 20
     @test interpolate(1:2, [10, 20], 2.0f0) === 20.0f0
     @test interpolate(1:2, [10, 20], 2.0) === 20.0
-    for extrapolate in [:error, :reflect, :replicate]
+    for extrapolate in LinearInterpolations.EXTRAPOLATE_SYMBOLS
         @test interpolate(1:2, [10, 20], 2.0; extrapolate) === 20.0
     end
     @test interpolate([10, 20], [2, 1], 30000, extrapolate = :replicate) ≈ 1
     @test interpolate([10, 20], [2, 1], 30, extrapolate = :reflect) ≈ 2
     @test interpolate([10, 20], [2, 1], 22.5, extrapolate = :reflect) ≈ 1.25
+
+    @testset "fuzzy" begin
+        @test_throws ArgumentError interpolate([10, 20], [2, 1], 22.5, extrapolate = :fuzzy)
+        @test interpolate([10, 20], [2, 1], 22.5, extrapolate=ITP.Fuzzy(atol=3)) == 1.0
+        @test interpolate([10, 20], [2, 1], nextfloat(20.0,10000), extrapolate = :fuzzy) == 1
+        @test interpolate([10, 20], [2, 1], nextfloat(20.0,10000), extrapolate = :fuzzy) == 1
+    end
 
     @inferred interpolate(1:2, [10, 20], 1)
     @inferred interpolate(1:2, [10, 20], 1.0f0)
