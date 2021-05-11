@@ -180,6 +180,21 @@ When evaluating at a point outside the grid, return value.
 struct Constant{C}
     value::C
 end
+function apply_extrapolate(o::Constant, pt)
+    o.value
+end
+
+"""
+    WithPoint(f)
+
+When evaluating at a point `pt` outside the grid, return `f(pt)`.
+"""
+struct WithPoint{F}
+    f::F
+end
+function apply_extrapolate(o::WithPoint, pt)
+    o.f(pt)
+end
 
 function _neighbors_and_weights1d(xs, x, extrapolate)
     x = project1d(extrapolate, xs, x)
@@ -363,11 +378,11 @@ function isinside(pt::Tuple, axes::Tuple)
     )
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Constant)
+function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{Constant, WithPoint})
     if isinside(pt, o.axes)
         dispatch_extrapol(o, pt, AssumeInside())
     else
-        extrapolate.value
+        apply_extrapolate(extrapolate, pt)
     end
 end
 

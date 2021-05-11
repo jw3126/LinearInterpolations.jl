@@ -94,6 +94,16 @@ end
         @test interpolate([10, 20], [2, 1], nextfloat(20.0); extrapolate) === 42.0
     end
 
+    @testset "WithPoint" begin
+        extrapolate = ITP.WithPoint(Base.splat(sin))
+        @inferred interpolate([10, 20], [2, 1], 22.5; extrapolate)
+        @test interpolate([10, 20], [2, 1], 22.5; extrapolate) === sin(22.5)
+        @test interpolate([10, 20], [2, 1], 20.0; extrapolate) === 1.0
+        @test interpolate([10, 20], [2, 1], 10.0; extrapolate) === 2.0
+        @test interpolate([10, 20], [2, 1], prevfloat(10.0); extrapolate) === sin(prevfloat(10.0))
+        @test interpolate([10, 20], [2, 1], nextfloat(20.0); extrapolate) === sin(nextfloat(20.0))
+    end
+
     @inferred interpolate(1:2, [10, 20], 1)
     @inferred interpolate(1:2, [10, 20], 1.0f0)
     @inferred interpolate(1:2, [10, 20], 1.0)
