@@ -14,9 +14,13 @@ struct TinyVector{T} <: AbstractVector{T}
 end
 TinyVector(x, y) = TinyVector(promote(x,y))
 Base.size(o::TinyVector) = (2,)
-function Base.getindex(o::TinyVector, i::Integer)
+Base.@propagate_inbounds function getindex(o::TinyVector, i::Integer)
+    index::Int = Int(i)
+    return o[index]
+end
+@inline function Base.getindex(o::TinyVector, i::Int)
     @boundscheck checkbounds(o, i)
-    @inbounds ifelse(i == 1, o.elements[1], o.elements[2])
+    @inbounds ifelse(i === 1, o.elements[1], o.elements[2])
 end
 
 struct WeightsArray{T,N,Factors} <: AbstractArray{T,N}
@@ -78,6 +82,13 @@ function project1d(extrapolate::Symbol, xs, x)
     end
 end
 
+"""
+    Fuzzy(;atol, rtol)
+
+Throw an error, for data far away from the grid, but project
+it onto the grid, if it is approximate accoriding to the fields
+of `Fuzzy`.
+"""
 struct Fuzzy{K <: NamedTuple}
     kw::K
 end
@@ -104,7 +115,7 @@ end
 """
     Replicate()
 
-Extrapolate data by replacing out of grid points with the closest in grid point
+Extrapolate data by replacing out of grid points with the closest in grid point.
 """
 struct Replicate end
 
@@ -112,6 +123,11 @@ function project1d(::Replicate, xs, x)
     return clamp(x, first(xs), last(xs))
 end
 
+"""
+    Reflect()
+
+Extrapolate data by reflecting out of grid points into the grid.
+"""
 struct Reflect end
 
 function project1d(::Reflect, xs, x)
@@ -126,6 +142,11 @@ function project1d(::Reflect, xs, x)
     end
 end
 
+"""
+    Error()
+
+Throw an error when trying to interpolate outside of the grid.
+"""
 struct Error end
 
 function project1d(::Error, xs, x)
@@ -140,6 +161,24 @@ function project1d(::Error, xs, x)
         """
         throw(ArgumentError(msg))
     end
+end
+
+"""
+    AssumeInside()
+
+Assume without checking, that a point is inside the grid when interpolating.
+Shoud the point lie outside of the grid, behaviour is undefined.
+"""
+struct AssumeInside end
+project1d(::AssumeInside, xs, x) = x
+
+"""
+    Constant(value)
+
+When evaluating at a point outside the grid, return value.
+"""
+struct Constant{C}
+    value::C
 end
 
 function _neighbors_and_weights1d(xs, x, extrapolate)
@@ -162,9 +201,9 @@ function _neighbors_and_weights1d(xs, x, extrapolate)
     return (nbs, wts)
 end
 
-function _neighbors_and_weights(axes::NTuple{N,Any}, pt, extrapolate) where {N}
+function _neighbors_and_weights(axes::NTuple{N,Any}, pt::NTuple{N,Any}, extrapolate) where {N}
     nbs_wts = let extrapolate=extrapolate
-        map(axes, NTuple{N}(pt)) do xs, x
+        map(axes, pt) do xs, x
             _neighbors_and_weights1d(xs, x, extrapolate)
         end
     end
@@ -307,9 +346,29 @@ function (o::Interpolate)(pt)
 end
 
 function (o::Interpolate)(pt::Tuple)
-    nbs, wts = _neighbors_and_weights(o.axes, pt, o.extrapolate)
+    dispatch_extrapol(o, pt, o.extrapolate)
+end
+
+function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate)
+    nbs, wts = _neighbors_and_weights(o.axes, pt, extrapolate)
     objs = NeighborsArray(o.values, nbs)
     o.combine(wts, objs)
+end
+
+function isinside(pt::Tuple, axes::Tuple)
+    all(
+        map(pt, axes) do x, r
+            first(r) <= x <= last(r)
+        end
+    )
+end
+
+function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Constant)
+    if isinside(pt, o.axes)
+        dispatch_extrapol(o, pt, AssumeInside())
+    else
+        extrapolate.value
+    end
 end
 
 end

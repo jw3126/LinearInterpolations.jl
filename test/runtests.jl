@@ -6,14 +6,14 @@ using ArgCheck
 using BenchmarkTools
 
 @testset "_neighbors_and_weights" begin
-    @inferred _neighbors_and_weights((1:3,), 2, :error)
-    @inferred _neighbors_and_weights(([1.0, 2.0],), Float32(2), :error)
-    @inferred _neighbors_and_weights(([1.0, 2.0], Base.OneTo(10)), [1, 2], :error)
+    @inferred _neighbors_and_weights((1:3,), (2,), :error)
+    @inferred _neighbors_and_weights(([1.0, 2.0],), (2f0,), :error)
+    @inferred _neighbors_and_weights(([1.0, 2.0], Base.OneTo(10)), (1, 2), :error)
 
     xs = 1:10
     x = 3.3
     axs = (xs,)
-    nbs, wts = @inferred _neighbors_and_weights(axs, x, :error)
+    nbs, wts = @inferred _neighbors_and_weights(axs, (x,), :error)
     @test nbs == (3:4,)
     @test wts ≈ [0.7, 0.3]
 
@@ -22,7 +22,6 @@ using BenchmarkTools
     nbs, wts = @inferred _neighbors_and_weights(axs, pt, :error)
     @test nbs == (3:4, 1:2)
     @test wts ≈ [0.7 0; 0.3 0]
-
 end
 
 @testset "_neighbors_and_weights1d" begin
@@ -83,6 +82,16 @@ end
         @test interpolate([10, 20], [2, 1], 22.5, extrapolate=ITP.Fuzzy(atol=3)) == 1.0
         @test interpolate([10, 20], [2, 1], nextfloat(20.0,10000), extrapolate = :fuzzy) == 1
         @test interpolate([10, 20], [2, 1], nextfloat(20.0,10000), extrapolate = :fuzzy) == 1
+    end
+
+    @testset "Constant" begin
+        extrapolate = ITP.Constant(42.0)
+        @inferred interpolate([10, 20], [2, 1], 22.5; extrapolate)
+        @test interpolate([10, 20], [2, 1], 22.5; extrapolate) === 42.0
+        @test interpolate([10, 20], [2, 1], 20.0; extrapolate) === 1.0
+        @test interpolate([10, 20], [2, 1], 10.0; extrapolate) === 2.0
+        @test interpolate([10, 20], [2, 1], prevfloat(10.0); extrapolate) === 42.0
+        @test interpolate([10, 20], [2, 1], nextfloat(20.0); extrapolate) === 42.0
     end
 
     @inferred interpolate(1:2, [10, 20], 1)
