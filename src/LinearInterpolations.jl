@@ -269,6 +269,13 @@ function _combine(wts, objs)
     return ret
 end
 
+"""
+    interpolate(axes, objs, pt; extrapolate = :error, [,combine])
+    interpolate(xs::AbstractVector, ys::AbstractVector, pt; kw...)
+
+Create an `Interpolate` and evaluate it at `pt`.
+See [`Interpolate`](@ref) for details.
+"""
 function interpolate(axes, objs, pt; extrapolate = :error, combine::C = combine) where {C}
     itp = Interpolate(combine, axes, objs, extrapolate)
     return itp(pt)
@@ -315,6 +322,26 @@ function Interpolate(
 )
     return Interpolate(combine, (xs,), ys, extrapolate)
 end
+"""
+
+    itp = Interpolate(axes, values; combine = LinearInterpolations.combine, extrapolate = :error)
+
+Create an `Interpolate` from the given arguments. The interpolate `itp` can be evaluated on points. E.g. `itp([1,2])`.
+
+# Arguments
+
+* axes: The coordinates of the grid points.
+* values: An AbstractArray which whose size is consistent with the length each axis.
+* extrapolate: How the interpolate behaves on points outside the grid limits. Possible values are:
+  - [`Replicate`](@ref), `:replicate`
+  - [`Reflect`](@ref), `:reflect`
+  - [`Error`](@ref), `:error`
+  - [`Fuzzy`](@ref), `:fuzzy`
+  - [`WithPoint`](@ref)
+  - [`Constant`](@ref)
+* combine: A custom function that combines weights and values into the final result.
+See [`LinearInterpolations.combine`](@ref)
+"""
 function Interpolate(axes, values; combine = combine, extrapolate = :error)
     return Interpolate(combine, axes, values, extrapolate)
 end
@@ -378,11 +405,17 @@ function isinside(pt::Tuple, axes::Tuple)
     )
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{Constant, WithPoint})
+function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{Number, AbstractArray})
+    return dispatch_extrapol(o,pt,Constant(extrapolate))
+end
+function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{WithPoint,
+                                                                        Constant,
+                                                                        })
     if isinside(pt, o.axes)
-        dispatch_extrapol(o, pt, AssumeInside())
+        return dispatch_extrapol(o, pt, AssumeInside())
     else
-        apply_extrapolate(extrapolate, pt)
+        T = typeof(dispatch_extrapol(o, pt, Replicate()))
+        convert(T, apply_extrapolate(extrapolate, pt))
     end
 end
 

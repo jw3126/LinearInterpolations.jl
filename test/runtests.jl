@@ -92,6 +92,28 @@ end
         @test interpolate([10, 20], [2, 1], 10.0; extrapolate) === 2.0
         @test interpolate([10, 20], [2, 1], prevfloat(10.0); extrapolate) === 42.0
         @test interpolate([10, 20], [2, 1], nextfloat(20.0); extrapolate) === 42.0
+
+        @inferred interpolate([10, 20], [2, 1], 22.5; extrapolate=42.0)
+        @inferred interpolate([10, 20], [2, 1], 22.5; extrapolate=42)
+        @inferred interpolate([10, 20], [2, 1], 22f0; extrapolate=42)
+
+        @test interpolate([10, 20], [2, 1], 22.5f0; extrapolate=42) === 42f0
+        @test interpolate([10, 20], [2, 1], 22.5; extrapolate=42) === 42.0
+        @test interpolate([10, 20], [2, 1], 22.5f0; extrapolate=42) === 42f0
+        @test interpolate([10, 20], [2, 1], 22.5; extrapolate=42f0) === 42.0
+        @test interpolate([10, 20], [2, 1], 22.5; extrapolate=true) === 1.0
+        @test interpolate([10, 20], [2, 1], 20.0; extrapolate=42) === 1.0
+        @test interpolate([10, 20], [2, 1], 10.0; extrapolate=42) === 2.0
+
+        # vector
+        extrapolate = ITP.Constant(42.0)
+        res = @inferred interpolate([10, 20], [[2,4], [1,6]], 22.5; extrapolate=[1,2])
+        @test (res isa Vector{Float64})
+        @test res == [1.0,2]
+
+        res = @inferred interpolate([10, 20], [[2,4], [1,6]], 22.5; extrapolate=Float32[1,2])
+        @test res isa Vector{Float64}
+        @test res == [1.0,2]
     end
 
     @testset "WithPoint" begin
@@ -231,7 +253,6 @@ end
         vals = randn(ntuple(_->3, dim)...)
         itp = @inferred Interpolate(axs, vals, extrapolate=LinearInterpolations.Replicate())
         pt = ntuple(_->0.0, dim)
-        Float64[1:dim...]
         @inferred itp(pt)
         @btime $itp($pt)
         @test (@allocated itp(pt)) < 20
