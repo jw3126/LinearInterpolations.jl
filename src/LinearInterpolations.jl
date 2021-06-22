@@ -381,20 +381,20 @@ end
 
 tupelize(itp, pt) = _make_NTuple(pt, NDims(itp))
 
-function (o::Interpolate)(pt)
-    @argcheck length(pt) == ndims(o)
-    pt2 = tupelize(o, pt)
-    return o(pt2)
+function (itp::Interpolate)(pt)
+    @argcheck length(pt) == ndims(itp)
+    pt2 = tupelize(itp, pt)
+    return itp(pt2)
 end
 
-function (o::Interpolate)(pt::Tuple)
-    dispatch_extrapol(o, pt, o.extrapolate)
+function (itp::Interpolate)(pt::Tuple)
+    dispatch_extrapol(itp, pt, itp.extrapolate)
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate)
-    nbs, wts = _neighbors_and_weights(o.axes, pt, extrapolate)
-    objs = NeighborsArray(o.values, nbs)
-    o.combine(wts, objs)
+function dispatch_extrapol(itp::Interpolate, pt::Tuple, extrapolate)
+    nbs, wts = _neighbors_and_weights(itp.axes, pt, extrapolate)
+    objs = NeighborsArray(itp.values, nbs)
+    itp.combine(wts, objs)
 end
 
 function isinside(pt::Tuple, axes::Tuple)
@@ -405,16 +405,16 @@ function isinside(pt::Tuple, axes::Tuple)
     )
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{Number, AbstractArray})
-    return dispatch_extrapol(o,pt,Constant(extrapolate))
+function dispatch_extrapol(itp::Interpolate, pt::Tuple, extrapolate::Union{Number, AbstractArray})
+    return dispatch_extrapol(itp,pt,Constant(extrapolate))
 end
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{WithPoint,
+function dispatch_extrapol(itp::Interpolate, pt::Tuple, extrapolate::Union{WithPoint,
                                                                         Constant,
                                                                         })
-    if isinside(pt, o.axes)
-        return dispatch_extrapol(o, pt, AssumeInside())
+    if isinside(pt, itp.axes)
+        return dispatch_extrapol(itp, pt, AssumeInside())
     else
-        T = typeof(dispatch_extrapol(o, pt, Replicate()))
+        T = typeof(dispatch_extrapol(itp, pt, Replicate()))
         convert(T, apply_extrapolate(extrapolate, pt))
     end
 end
