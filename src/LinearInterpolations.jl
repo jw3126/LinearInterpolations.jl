@@ -135,13 +135,28 @@ struct Reflect end
 function project1d(::Reflect, xs, x)
     x_first = first(xs)
     x_last = last(xs)
-    if x > x_last
-        project1d(Reflect(), xs, 2x_last - x)
-    elseif x < x_first
-        project1d(Reflect(), xs, 2x_first - x)
+    Δx = x_last - x_first
+    x1 = if x <= x_first
+        n = floor((x_last-x)/(2Δx))
+        x + n*2Δx
+    elseif x >= x_last
+        n = floor((x-x_first)/(2Δx))
+        x - n*2Δx
     else
         x
     end
+    x2 = if x1 > x_last
+        2x_last - x1
+    elseif x1 < x_first
+        2x_first - x1
+    else
+        x1
+    end
+    # It should now hold that:
+    # x_first <= x <= x_last
+    # but floating point issues might prevent that?
+    x3 = clamp(x2, x_first, x_last)
+    return x3
 end
 
 """
@@ -336,6 +351,7 @@ function Interpolate(
 )
     return Interpolate(combine, (xs,), ys, extrapolate)
 end
+
 """
 
     itp = Interpolate(axes, values; combine = LinearInterpolations.combine, extrapolate = :error)

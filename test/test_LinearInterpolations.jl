@@ -39,6 +39,7 @@ end
     @test _neighbors_and_weights1d([10, 20], 25, :reflect) == (1:2, [0.5, 0.5])
     @test _neighbors_and_weights1d([10, 20], 5, :reflect) == (1:2, [0.5, 0.5])
     @test _neighbors_and_weights1d([10, 20], 35, :reflect) == (1:2, [0.5, 0.5])
+    @test _neighbors_and_weights1d([10, 20], 10035, :reflect) == (1:2, [0.5, 0.5])
 
     @test_throws ArgumentError _neighbors_and_weights1d([10, 20], 30, :error)
     @test_throws ArgumentError _neighbors_and_weights1d([10, 20], 15, :nonsense)
@@ -226,8 +227,6 @@ end
 end
 
 @testset "internals" begin
-
-
     xs = [-10.0, 0.0, 10.0]
     itp = @inferred Interpolate((xs,xs), randn(3,3))
     pt = (1.0, 2.0)
@@ -256,7 +255,9 @@ end
         pt = ntuple(_->0.0, dim)
         @inferred itp(pt)
         @btime $itp($pt)
-        @test (@allocated itp(pt)) < 20
+        if (dim <= 3) || (VERSION <= v"1.6")
+            @test (@allocated itp(pt)) < 20
+        end
     end
 end
 
