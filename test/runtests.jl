@@ -7,6 +7,9 @@ catch
 end
 CUDA_FUNCTIONAL = CUDA_INSTALLED && CUDA.functional()
 if CUDA_INSTALLED && CUDA_FUNCTIONAL
+    @info """
+    Found a working CUDA.jl package, running GPU tests
+    """
     include("test_CUDA.jl")
 else
     msg = """

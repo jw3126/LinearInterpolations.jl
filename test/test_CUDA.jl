@@ -20,7 +20,7 @@ CUDA.allowscalar(false)
     @test CuArray(result_cpu) ≈ result_gpu
 end
 
-@testset "gpu vs cpu" begin
+@testset "gpu ≈ cpu" begin
     setups = Any[]
     for extrapolate in [LI.Replicate(), LI.Reflect(), LI.Constant(Float32(42)),
                         LI.WithPoint(sin∘sum),

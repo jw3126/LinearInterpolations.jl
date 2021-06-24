@@ -62,6 +62,21 @@ julia> interpolate(xs, ys, 3.7, combine=winner_takes_it_all)
 :multiplication
 ```
 
+# GPU Support
+
+The package does support usage on GPU via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
+
+Note that GPU code is restricted to a subset of julia. This means `extrapolate` options that might throw an exception are not available. In particular the default extrapolate can throw, so an exception free extrapolate option must be passed explicitly:
+```
+using CUDA
+using Interpolations
+using Adapt
+
+itp = Interpolate(sort!(randn(Float32, 10)), randn(Float32, 10), extrapolate=LI.Replicate())
+itp = adapt(CuArray, itp) # move to GPU
+pts = CUDA.randn(Float32, 200)
+```
+
 # Design goals
 
 * Lightweight and simple
