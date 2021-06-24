@@ -76,6 +76,7 @@ itp = Interpolate(sort!(randn(Float32, 10)), randn(Float32, 10), extrapolate=LI.
 itp = adapt(CuArray, itp) # move to GPU
 pts = CUDA.randn(Float32, 200)
 ```
+To increase GPU performance, we recommend organizing `pts` as a [struct of arrays](https://github.com/JuliaArrays/StructArrays.jl).
 
 # Design goals
 
