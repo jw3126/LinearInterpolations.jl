@@ -4,11 +4,13 @@ authors = ["Jan Weidner <jw3126@gmail.com> and contributors"]
 version = "0.1.4"
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 
 [compat]
 ArgCheck = "1, 2.0"
 julia = "1.5"
+Adapt = "3.3.1"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
