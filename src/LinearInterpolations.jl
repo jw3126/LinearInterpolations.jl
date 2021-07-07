@@ -1,6 +1,5 @@
 module LinearInterpolations
 
-
 @doc let path = joinpath(dirname(@__DIR__), "README.md")
     include_dependency(path)
     replace(read(path, String), r"^```julia"m => "```jldoctest README")
@@ -10,6 +9,7 @@ export interpolate, Interpolate
 
 using ArgCheck
 import Adapt
+import StaticArrays
 
 struct TinyVector{T} <: AbstractVector{T}
     elements::NTuple{2,T}
@@ -416,6 +416,7 @@ function check_dims(itp::Itp, pt) where {Itp <: Interpolate}
 end
 _check_dims(itp, pt::NTuple{N,Any}, ::Val{N}) where {N} = nothing
 _check_dims(itp, pt::Number, ::Val{1}) = nothing
+_check_dims(itp, pt::StaticArrays.StaticVector{N}, ::Val{N}) where {N} = nothing
 function _check_dims(itp, pt, ndims_itp)
     if ndims(itp) != length(pt)
         msg = """
@@ -428,7 +429,6 @@ function _check_dims(itp, pt, ndims_itp)
 end
 
 function (itp::Interpolate)(pt)
-    # TODO elide this check for static arrays
     check_dims(itp, pt)
     pt2 = tupelize(itp, pt)
     return itp(pt2)

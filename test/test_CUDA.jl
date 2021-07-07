@@ -4,8 +4,9 @@ using CUDA
 using Adapt
 using LinearInterpolations
 using LinearInterpolations: Replicate, Reflect, WithPoint, Constant
+using StructArrays
+using StaticArrays
 const LI=LinearInterpolations
-CUDA.allowscalar(false)
 
 @testset "1d" begin
     itp_cpu = Interpolate(sort!(randn(Float32, 10)), randn(Float32, 10), extrapolate=LI.Replicate())
@@ -23,7 +24,7 @@ end
 @testset "gpu ≈ cpu" begin
     setups = Any[]
     for extrapolate in [LI.Replicate(), LI.Reflect(), LI.Constant(Float32(42)),
-                        LI.WithPoint(sin∘sum),
+                        #LI.WithPoint(sin∘sum),
                        ]
         for shape_itp in [(10,), (11,12), (11,12,13)]
             axs = Tuple(sort!(randn(Float32, n)) for n in shape_itp)
@@ -42,6 +43,14 @@ end
         result_gpu = itp_gpu.(pts_gpu)
         @test result_gpu isa CuArray
         @test Array(result_gpu) ≈ result_cpu
+
+        # TODO: add soa test
+        # pts_gpu_soa = StructArray(Tuple(CuArray(map(pt -> pt[i], setup.pts)) for i in 1:setup.dim))
+        # pts_gpu_soa = map(SVector{setup.dim}, pts_gpu_soa)
+        # @test pts_gpu_soa isa StructArray
+        # result_gpu_soa = itp_gpu.(pts_gpu_soa)
+        # @test result_gpu_soa isa CuArray
+        # @test Array(result_gpu_soa) == Array(result_gpu)
     end
 end
 

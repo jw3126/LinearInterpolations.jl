@@ -5,6 +5,7 @@ const ITP = LinearInterpolations
 using Test
 using ArgCheck
 using BenchmarkTools
+using StaticArrays
 
 @testset "_neighbors_and_weights" begin
     @inferred _neighbors_and_weights((1:3,), (2,), :error)
