@@ -1,5 +1,6 @@
 module LinearInterpolations
 
+
 @doc let path = joinpath(dirname(@__DIR__), "README.md")
     include_dependency(path)
     replace(read(path, String), r"^```julia"m => "```jldoctest README")
@@ -8,6 +9,7 @@ end LinearInterpolations
 export interpolate, Interpolate
 
 using ArgCheck
+import Adapt
 
 struct TinyVector{T} <: AbstractVector{T}
     elements::NTuple{2,T}
@@ -133,13 +135,28 @@ struct Reflect end
 function project1d(::Reflect, xs, x)
     x_first = first(xs)
     x_last = last(xs)
-    if x > x_last
-        project1d(Reflect(), xs, 2x_last - x)
-    elseif x < x_first
-        project1d(Reflect(), xs, 2x_first - x)
+    Δx = x_last - x_first
+    x1 = if x <= x_first
+        n = floor((x_last-x)/(2Δx))
+        x + n*2Δx
+    elseif x >= x_last
+        n = floor((x-x_first)/(2Δx))
+        x - n*2Δx
     else
         x
     end
+    x2 = if x1 > x_last
+        2x_last - x1
+    elseif x1 < x_first
+        2x_first - x1
+    else
+        x1
+    end
+    # It should now hold that:
+    # x_first <= x <= x_last
+    # but floating point issues might prevent that?
+    x3 = clamp(x2, x_first, x_last)
+    return x3
 end
 
 """
@@ -286,6 +303,7 @@ function interpolate(xs::AbstractVector, ys::AbstractVector, pt; kw...)
     return interpolate(axes, ys, pt; kw...)
 end
 
+function unsafe_Interpolate end
 struct Interpolate{C,A,V,O}
     combine::C
     axes::A
@@ -306,12 +324,23 @@ struct Interpolate{C,A,V,O}
         @argcheck all(first.(axes) .<= last.(axes))
         @argcheck all(ndims.(axes) .== 1)
         @argcheck all(eachindex.(axes) .== Base.axes(values))
+        LinearInterpolations.unsafe_Interpolate(combine, axes, values, extrapolate)
+    end
+    function LinearInterpolations.unsafe_Interpolate(combine, axes::Tuple, values, extrapolate)
         C = typeof(combine)
         A = typeof(axes)
         V = typeof(values)
         O = typeof(extrapolate)
         return new{C,A,V,O}(combine, axes, values, extrapolate)
     end
+end
+function Adapt.adapt_structure(to, itp::Interpolate)
+    unsafe_Interpolate(
+        Adapt.adapt_structure(to,itp.combine),
+        Adapt.adapt_structure(to,itp.axes),
+        Adapt.adapt_structure(to,itp.values),
+        Adapt.adapt_structure(to,itp.extrapolate),
+    )
 end
 
 function Interpolate(
@@ -322,6 +351,7 @@ function Interpolate(
 )
     return Interpolate(combine, (xs,), ys, extrapolate)
 end
+
 """
 
     itp = Interpolate(axes, values; combine = LinearInterpolations.combine, extrapolate = :error)
@@ -381,20 +411,41 @@ end
 
 tupelize(itp, pt) = _make_NTuple(pt, NDims(itp))
 
-function (o::Interpolate)(pt)
-    @argcheck length(pt) == ndims(o)
-    pt2 = tupelize(o, pt)
-    return o(pt2)
+function check_dims(itp::Itp, pt) where {Itp <: Interpolate}
+    _check_dims(itp, pt, NDims(Itp))
+end
+_check_dims(itp, pt::NTuple{N,Any}, ::Val{N}) where {N} = nothing
+_check_dims(itp, pt::Number, ::Val{1}) = nothing
+function _check_dims(itp, pt, ndims_itp)
+    if ndims(itp) != length(pt)
+        msg = """
+        Dimensions of interpolate and point do not match. Got:
+        length(pt) = $(length(pt))
+        ndims(itp) = $(ndims(itp))
+        """
+        throw(ArgumentError(msg))
+    end
 end
 
-function (o::Interpolate)(pt::Tuple)
-    dispatch_extrapol(o, pt, o.extrapolate)
+function (itp::Interpolate)(pt)
+    # TODO elide this check for static arrays
+    check_dims(itp, pt)
+    pt2 = tupelize(itp, pt)
+    return itp(pt2)
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate)
-    nbs, wts = _neighbors_and_weights(o.axes, pt, extrapolate)
-    objs = NeighborsArray(o.values, nbs)
-    o.combine(wts, objs)
+function (itp::Interpolate)(pt::Tuple)
+    dispatch_extrapol(itp, pt, itp.extrapolate)
+end
+
+function eval_interpolate(itp, pt::Tuple)
+    dispatch_extrapol(itp, pt, itp.extrapolate)
+end
+
+function dispatch_extrapol(itp, pt::Tuple, extrapolate)
+    nbs, wts = _neighbors_and_weights(itp.axes, pt, extrapolate)
+    objs = NeighborsArray(itp.values, nbs)
+    itp.combine(wts, objs)
 end
 
 function isinside(pt::Tuple, axes::Tuple)
@@ -405,16 +456,16 @@ function isinside(pt::Tuple, axes::Tuple)
     )
 end
 
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{Number, AbstractArray})
-    return dispatch_extrapol(o,pt,Constant(extrapolate))
+function dispatch_extrapol(itp, pt::Tuple, extrapolate::Union{Number, AbstractArray})
+    return dispatch_extrapol(itp,pt,Constant(extrapolate))
 end
-function dispatch_extrapol(o::Interpolate, pt::Tuple, extrapolate::Union{WithPoint,
+function dispatch_extrapol(itp, pt::Tuple, extrapolate::Union{WithPoint,
                                                                         Constant,
                                                                         })
-    if isinside(pt, o.axes)
-        return dispatch_extrapol(o, pt, AssumeInside())
+    if isinside(pt, itp.axes)
+        return dispatch_extrapol(itp, pt, AssumeInside())
     else
-        T = typeof(dispatch_extrapol(o, pt, Replicate()))
+        T = typeof(dispatch_extrapol(itp, pt, Replicate()))
         convert(T, apply_extrapolate(extrapolate, pt))
     end
 end
