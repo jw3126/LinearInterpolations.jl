@@ -324,7 +324,8 @@ struct Interpolate{C,A,V,O}
         @argcheck all(first.(axes) .<= last.(axes))
         @argcheck all(ndims.(axes) .== 1)
         @argcheck all(eachindex.(axes) .== Base.axes(values))
-        LinearInterpolations.unsafe_Interpolate(combine, axes, values, extrapolate)
+        ret = LinearInterpolations.unsafe_Interpolate(combine, axes, values, extrapolate)
+        return ret
     end
     function LinearInterpolations.unsafe_Interpolate(combine, axes::Tuple, values, extrapolate)
         C = typeof(combine)

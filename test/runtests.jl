@@ -1,11 +1,11 @@
-CUDA_INSTALLED = false
+include("test_LinearInterpolations.jl")
 try
     import CUDA
     global CUDA_INSTALLED = true
 catch
     global CUDA_INSTALLED = false
 end
-CUDA_FUNCTIONAL = CUDA_INSTALLED && CUDA.functional()
+CUDA_FUNCTIONAL = CUDA.functional()
 if CUDA_INSTALLED && CUDA_FUNCTIONAL
     @info """
     Found a working CUDA.jl package, running GPU tests
@@ -19,4 +19,3 @@ else
     """
     @warn msg
 end
-include("test_LinearInterpolations.jl")
