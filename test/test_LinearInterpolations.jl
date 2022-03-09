@@ -7,6 +7,25 @@ using ArgCheck
 using BenchmarkTools
 using StaticArrays
 
+@testset "isinside" begin
+    @test ITP.isinside(10, Interpolate(10:10:30, [10,3,4]))
+    @test ITP.isinside(11, Interpolate(10:10:30, [10,3,4]))
+    @test ITP.isinside(30, Interpolate(10:10:30, [10,3,4]))
+    @test !ITP.isinside(9.999, Interpolate(10:10:30, [10,3,4]))
+    @test !ITP.isinside(30.1, Interpolate(10:10:30, [10,3,4]))
+    @test !ITP.isinside(-13.4, Interpolate(10:10:30, [10,3,4]))
+
+    @test ITP.isinside((10,), Interpolate(10:10:30, [10,3,4]))
+    @test ITP.isinside([10], Interpolate(10:10:30, [10,3,4]))
+
+    itp = Interpolate((-1:2,[10,15]), randn(4,2))
+    @test ITP.isinside((0,10.3), itp)
+    @test ITP.isinside((-1,15), itp)
+    @test !ITP.isinside((-1.1,10.3), itp)
+    @test !ITP.isinside((-1,15.3), itp)
+
+end
+
 @testset "_neighbors_and_weights" begin
     @inferred _neighbors_and_weights((1:3,), (2,), :error)
     @inferred _neighbors_and_weights(([1.0, 2.0],), (2f0,), :error)

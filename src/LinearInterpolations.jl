@@ -410,7 +410,10 @@ function _make_NTuple(itr, ::Val{N}) where {N}
     ret::NTuple{N, first(ret)}
 end
 
-tupelize(itp, pt) = _make_NTuple(pt, NDims(itp))
+function tupelize(itp, pt)
+    check_dims(itp, pt)
+    _make_NTuple(pt, NDims(itp))
+end
 
 function check_dims(itp::Itp, pt) where {Itp <: Interpolate}
     _check_dims(itp, pt, NDims(Itp))
@@ -430,7 +433,6 @@ function _check_dims(itp, pt, ndims_itp)
 end
 
 function (itp::Interpolate)(pt)
-    check_dims(itp, pt)
     pt2 = tupelize(itp, pt)
     return itp(pt2)
 end
@@ -449,12 +451,37 @@ function dispatch_extrapol(itp, pt::Tuple, extrapolate)
     itp.combine(wts, objs)
 end
 
-function isinside(pt::Tuple, axes::Tuple)
+function isinside(pt::Tuple, axes::Tuple)::Bool
     all(
         map(pt, axes) do x, r
             first(r) <= x <= last(r)
         end
     )
+end
+
+"""
+
+    isinside(pt, itp::Interpolate)::Bool
+
+Compute if `pt` is inside the interpolation grid.
+
+```jldoctest
+julia> using LinearInterpolations
+
+julia> using LinearInterpolations: isinside
+
+julia> isinside(10, Interpolate(10:10:30, [10,3,4]))
+true
+
+julia> isinside(9.999, Interpolate(10:10:30, [10,3,4]))
+false
+
+julia> isinside((0,10.3), Interpolate((-1:2,[10,15]), randn(4,2)))
+true
+```
+"""
+function isinside(pt, itp::Interpolate)::Bool
+    isinside(tupelize(itp, pt)::Tuple, itp.axes::Tuple)
 end
 
 function dispatch_extrapol(itp, pt::Tuple, extrapolate::Union{Number, AbstractArray})
