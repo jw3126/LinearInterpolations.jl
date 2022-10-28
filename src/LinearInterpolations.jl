@@ -405,9 +405,13 @@ function _make_NTuple(itr, ::Val{4})
     x1,x2,x3,x4 = itr
     promote(x1,x2,x3,x4)
 end
+function _make_NTuple(itr, ::Val{5})
+    x1,x2,x3,x4,x5 = itr
+    promote(x1,x2,x3,x4,x5)
+end
 function _make_NTuple(itr, ::Val{N}) where {N}
     ret = promote(NTuple{N,Any}(itr)...)
-    ret::NTuple{N, first(ret)}
+    ret::NTuple{N, typeof(first(ret))}
 end
 
 function tupelize(itp, pt)

@@ -216,6 +216,20 @@ end
     end
 end
 
+@testset "smoketest high dimensions" begin
+    for ndims in 1:7
+        vals = randn(Tuple(2 for _ in 1:ndims))
+        axs = Tuple(sort!(randn(2)) for _ in 1:ndims)
+        center = map(axs) do xs
+            (first(xs) + last(xs))/2
+        end
+        val = interpolate(axs, vals, center)
+        @test val ≈ sum(vals)/length(vals)
+        val = interpolate(axs, vals, collect(center))
+        @test val ≈ sum(vals)/length(vals)
+    end
+end
+
 @testset "Probability distributions" begin
     struct ProbDist
         probabilities::Vector{Float64}
